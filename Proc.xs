@@ -12,18 +12,24 @@ extern "C" {
 SV *
 proc_info_int(int pid, int flags)
 {
-    PQTOPLEVEL top = get_sysinfo(pid, (flags & 1 ? QSS_PROCESS : 0)
-				     | (flags & 2 ? QSS_MODULE : 0)
-				     | (flags & 4 ? QSS_SEMAPHORES : 0)
-				     | (flags & 8 ? QSS_SHARED : 0)
-				     | (flags & 256 ? QSS_FILE : 0)
-				);
+    PQTOPLEVEL top;
     PQPROCESS	procdata;
     PQTHREAD threads;
     PQMODULE	moddata;
     SV *sv;
     AV *top_av, *procs_av, *mods_av;
-    
+    ULONG rc;
+
+    /*  It is not safe to get an info about a non-existing PID until
+	circa W3fp18.  This call is available starting from Warp3.  */
+    if (pid && CheckOSError(DosVerifyPidTid(pid,1)))
+	return Nullsv;
+    top = get_sysinfo(	pid, (flags & 1 ? QSS_PROCESS : 0)
+			     | (flags & 2 ? QSS_MODULE : 0)
+			     | (flags & 4 ? QSS_SEMAPHORES : 0)
+			     | (flags & 8 ? QSS_SHARED : 0)
+			     | (flags & 256 ? QSS_FILE : 0)
+			);
     if (top == NULL) return 0;
     top_av = newAV();
     procs_av = newAV();
@@ -80,8 +86,10 @@ proc_info_int(int pid, int flags)
 	}
 	procdata = (PQPROCESS) threads;	/* Next process data. */
     }
+/*
     if (procdata) 
 	warn("After: procdata->rectype = 0x%x", procdata->rectype);
+ */
     moddata = top->moddata;
     while (moddata) {
 	AV *mod_av = newAV();
@@ -128,7 +136,7 @@ global_info_int()
 MODULE = OS2::Proc		PACKAGE = OS2::Proc		
 
 SV *
-proc_info_int(pid, flags = 3)
+proc_info_int(pid = getpid(), flags = 3)
     int pid
     int flags
 
